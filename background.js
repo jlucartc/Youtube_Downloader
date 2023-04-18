@@ -155,12 +155,12 @@ function generate_requests(request_url){
     let request_quantity = 100
     let current_byte = -1
     let size = request_size(request_url)
-    let request_size = Math.floor(size/request_quantity)
+    let bytes_per_request = Math.floor(size/request_quantity)
     let request_list = Array(request_quantity).fill('')
     let list = request_list.map((item,index) => {
         let range_regex = /\&range=[0-9]+-[0-9]+\&/
         let start = current_byte+1
-        let end = start + request_size
+        let end = start + bytes_per_request
         if(index == request_quantity-1){
             end = size-1
         }
