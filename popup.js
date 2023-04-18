@@ -45,7 +45,7 @@ function filter_files(){
 }
 
 function generate_files_list(files){
-    let videos = Object.keys(files).reverse()
+    let videos = Object.keys(files)
 
     let files_container = document.querySelector('.files')
     
