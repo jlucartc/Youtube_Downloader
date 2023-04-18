@@ -124,7 +124,7 @@ function process_request(request_url,video_url,video_title){
     load_data().then(data => {
         let file_signature = get_signature(request_url,video_url)
         if(!requests.hasOwnProperty(file_signature)){
-            if(chunk_list_size(request_url) != null){
+            if(request_size(request_url) != null){
                 requests[file_signature] = {title: video_title, mime: get_mime_description(request_url), requests: generate_requests(request_url)}
                 save_file(request_url,video_url)
             }
@@ -154,7 +154,7 @@ function load_data(){
 function generate_requests(request_url){
     let request_quantity = 100
     let current_byte = -1
-    let size = chunk_list_size(request_url)
+    let size = request_size(request_url)
     let request_size = Math.floor(size/request_quantity)
     let request_list = Array(request_quantity).fill('')
     let list = request_list.map((item,index) => {
@@ -170,11 +170,11 @@ function generate_requests(request_url){
     return list
 }
 
-function chunk_list_size(chunk){
+function request_size(request_url){
     let clen_regex = /\&clen=[0-9]+\&/
     let size = null
-    if(chunk.match(clen_regex) != null){
-        let clen = chunk.match(clen_regex)[0].replace('&clen=','').replace('&','')
+    if(request_url.match(clen_regex) != null){
+        let clen = request_url.match(clen_regex)[0].replace('&clen=','').replace('&','')
         size = parseInt(clen)
     }
     return size

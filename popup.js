@@ -1,6 +1,24 @@
+function filter_files(){
+    let files = Array.from(document.querySelector('.files').children)
+    let search_input = document.querySelector('.search-group__input')
+    let file_format_select = document.querySelector('.format-filter__select')
+    let words = search_input.value.split(/\s+/)
+
+    files.forEach((file,index) => {
+        let download_button = file.querySelector('.file-item-list-item__request-download , .file-item-list-item__download-complete')
+        let signature = download_button.getAttribute('data-signature')
+        words.forEach((word) => {
+            if(file.innerText.toLowerCase().match(word.toLowerCase()) != null || signature.match(file_format_select.value+'$') != null ){
+                file.style.display = 'flex'
+            }else{
+                file.style.display = 'none'
+            }
+        })
+    })
+}
+
 function generate_files_list(files){
-    let videos = Object.keys(files)
-    console.log('Files: ',files)
+    let videos = Object.keys(files).reverse()
 
     let files_container = document.querySelector('.files')
     
@@ -53,10 +71,6 @@ function generate_files_list(files){
             file_item_list_item_remove.addEventListener('click',remove_file)
         }
 
-        // video_files.forEach((file) => {
-
-        // })
-
         files_container.append(file_item)
     })
 }
@@ -85,7 +99,6 @@ function download_file(e){
     })    
 }
 
-
 function request_file_download(e){
     e.target.disabled = true
     let request_url = e.target.getAttribute('data-request')
@@ -96,17 +109,20 @@ function request_file_download(e){
 }
 
 let connection = chrome.runtime.connect({name: 'popup'})
+let search_input = document.querySelector('.search-group__input')
+let file_format_select = document.querySelector('.format-filter__select')
+
+search_input.addEventListener('keyup',filter_files)
+file_format_select.addEventListener('change',filter_files)
 
 chrome.storage.local.get('files',(data) => {
     if(data.hasOwnProperty('files')){
-        console.log('data',data)
         generate_files_list(data['files'])
     }
 })
 
 chrome.storage.onChanged.addListener((data,areaName) => {
     if(data.hasOwnProperty('files')){
-        console.log('data',data)
         generate_files_list(data['files'].newValue)
     }
 })
