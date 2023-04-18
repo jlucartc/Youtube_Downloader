@@ -57,7 +57,7 @@ function generate_files_list(files){
         let file = files[video]
 
         let file_item = document.createElement('div')
-        let file_item_list_item_url = document.createElement('label')
+        let file_item_list_item_url = document.createElement('a')
         let file_item_list_item_title = document.createElement('label')
         let file_item_list_item_download = document.createElement('button')
         let file_item_list_item_remove = document.createElement('button')
@@ -69,7 +69,8 @@ function generate_files_list(files){
 
         file_item.className = 'file-item'
         file_item_list_item_url.className = 'file-item-list-item__url'
-        file_item_list_item_url.innerHTML = '<a href='+file.video_url+'>'+file.video_url+'</a>'
+        file_item_list_item_url.innerHTML = file.video_url
+        file_item_list_item_url.href = file.video_url
         file_item_list_item_title.className = 'file-item-list-item__title'
 
         file_item_list_item_download.setAttribute('data-request',file.request_url)

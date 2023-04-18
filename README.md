@@ -41,3 +41,7 @@
 - You shouldn't keep downloaded data in your browser, since it may occupy more memory than it should.
 - In case your file doesn't open in your video player, remove it from the list and try downloading it again.
 - Some data formats are not included in the filtering list, so they'll usually appear as 'video/mp4' or 'audio/webm'.
+
+Brief usage video:
+
+<video src="youtube_downloader.mp4" width="500px"></video>
