@@ -1,3 +1,22 @@
+let connection = chrome.runtime.connect({name: 'popup'})
+let search_input = document.querySelector('.search-group__input')
+let file_format_select = document.querySelector('.format-filter__select')
+
+search_input.addEventListener('keyup',filter_files)
+file_format_select.addEventListener('change',filter_files)
+
+chrome.storage.local.get('files',(data) => {
+    if(data.hasOwnProperty('files')){
+        generate_files_list(data['files'])
+    }
+})
+
+chrome.storage.onChanged.addListener((data,areaName) => {
+    if(data.hasOwnProperty('files')){
+        generate_files_list(data['files'].newValue)
+    }
+})
+
 function filter_files(){
     let files = Array.from(document.querySelector('.files').children)
     let search_input = document.querySelector('.search-group__input')
@@ -7,13 +26,21 @@ function filter_files(){
     files.forEach((file,index) => {
         let download_button = file.querySelector('.file-item-list-item__request-download , .file-item-list-item__download-complete')
         let signature = download_button.getAttribute('data-signature')
-        words.forEach((word) => {
-            if(file.innerText.toLowerCase().match(word.toLowerCase()) != null || signature.match(file_format_select.value+'$') != null ){
+        if(words.length > 0){
+            words.forEach((word) => {
+                if(file.innerText.toLowerCase().match(word.toLowerCase() != null) || signature.match(file_format_select.value+'$') != null ){
+                    file.style.display = 'flex'
+                }else{
+                    file.style.display = 'none'
+                }
+            })
+        }else{
+            if(signature.match(file_format_select.value+'$') != null ){
                 file.style.display = 'flex'
             }else{
                 file.style.display = 'none'
             }
-        })
+        }
     })
 }
 
@@ -56,7 +83,7 @@ function generate_files_list(files){
         file_item_list_item_remove.setAttribute('data-video',file.video_url)
         file_item_list_item_remove.setAttribute('data-mime',file.mime)
         file_item_list_item_remove.innerHTML = 'Remove '+file.mime
-
+        
         file_item_list_item_title.innerHTML = file.title
         
         if(file.file != null){
@@ -65,6 +92,11 @@ function generate_files_list(files){
             file_item_list_item_remove.className = 'file-item-list-item__remove'
             file_item_list_item_remove.addEventListener('click',remove_file)
         }else{
+            if(file.in_progress){
+                file_item_list_item_download.innerHTML = 'Downloading '+file.mime+'...'+'( '+file.progress+'% )'
+                file_item_list_item_remove.disabled = true
+                file_item_list_item_download.disabled = true
+            }
             file_item_list_item_download.className = 'file-item-list-item__request-download'
             file_item_list_item_remove.className = 'file-item-list-item__remove'
             file_item_list_item_download.addEventListener('click',request_file_download)
@@ -101,28 +133,19 @@ function download_file(e){
 
 function request_file_download(e){
     e.target.disabled = true
+    let signature = e.target.getAttribute('data-signature')
     let request_url = e.target.getAttribute('data-request')
     let video_url = e.target.getAttribute('data-video')
     let mime = e.target.getAttribute('data-mime')
     e.target.innerHTML = 'Downloading '+mime+'...'
-    connection.postMessage({msg: 'download_file', request_url: request_url, video_url: video_url})
+    chrome.storage.local.get('files')
+    .then(data => {
+        if(data.hasOwnProperty('files')){
+            data['files'][signature].in_progress = true
+            chrome.storage.local.set({files: data['files']})
+            .then(() => {
+                connection.postMessage({msg: 'download_file', request_url: request_url, video_url: video_url})
+            })
+        }
+    })
 }
-
-let connection = chrome.runtime.connect({name: 'popup'})
-let search_input = document.querySelector('.search-group__input')
-let file_format_select = document.querySelector('.format-filter__select')
-
-search_input.addEventListener('keyup',filter_files)
-file_format_select.addEventListener('change',filter_files)
-
-chrome.storage.local.get('files',(data) => {
-    if(data.hasOwnProperty('files')){
-        generate_files_list(data['files'])
-    }
-})
-
-chrome.storage.onChanged.addListener((data,areaName) => {
-    if(data.hasOwnProperty('files')){
-        generate_files_list(data['files'].newValue)
-    }
-})

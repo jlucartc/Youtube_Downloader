@@ -152,9 +152,9 @@ function load_data(){
 }
 
 function generate_requests(request_url){
-    let request_quantity = 100
-    let current_byte = -1
     let size = request_size(request_url)
+    let request_quantity = size > 100000000 ? 1000 : 100
+    let current_byte = -1
     let bytes_per_request = Math.floor(size/request_quantity)
     let request_list = Array(request_quantity).fill('')
     let list = request_list.map((item,index) => {
@@ -201,6 +201,8 @@ function save_file(request_url,video_url){
                     video_url: video_url,
                     title: requests[file_signature].title,
                     mime: requests[file_signature].mime,
+                    in_progress: false,
+                    progress: 0,
                     file: null
                 }
             }else{
@@ -209,6 +211,8 @@ function save_file(request_url,video_url){
                     video_url: video_url,
                     title: requests[file_signature].title,
                     mime: requests[file_signature].mime,
+                    in_progress: false,
+                    progress: 0,
                     file: null
                 }
             }
@@ -219,6 +223,8 @@ function save_file(request_url,video_url){
                 video_url: video_url,
                 title: requests[file_signature].title,
                 mime: requests[file_signature].mime,
+                in_progress: false,
+                progress: 0,
                 file: null
             }
         }
@@ -268,6 +274,13 @@ function download_file(request_url,video_url){
             }else{
                 blobs[file_signature] = blob_structure
             }
+            chrome.storage.local.get('files')
+            .then(data => {
+                if(data.hasOwnProperty('files')){
+                    data['files'][file_signature].progress = Math.trunc((blobs[file_signature].data.length/requests[file_signature].requests.length)*100)
+                    chrome.storage.local.set({files: data['files']})
+                }
+            })
             return {content: data, id: index}
         })
     }))
