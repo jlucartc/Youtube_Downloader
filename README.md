@@ -1,29 +1,9 @@
 <html>
-    <style>
-        #red{
-            width: 100px;
-            height: 100px;
-            background-color: #ff0000;
-        }
-        .content{
-            display: flex;
-            flex-direction: column;
-            align-items: start;
-        }
-        .icon{
-            height: 200px;
-        }
-        .document-header{
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-    </style>
     <body>
         <div class="content">
             <div class="document-header">
                 <h1>Youtube Downloader</h1>
-                <img class="icon" src="./youtube_downloader.png" alt="Youtuber Downloader icon"></img>
+                <img class="icon" src="./youtube_downloader.png" alt="Youtuber Downloader icon" width='200px'></img>
             </div>
         </div>
     </body>
@@ -44,4 +24,4 @@
 
 Brief usage video:
 
-<video src="youtube_downloader.mp4" width="500px"></video>
+https://user-images.githubusercontent.com/18648391/235040328-7b71b6fa-e585-48bd-8513-9bd695cba8e8.mp4
