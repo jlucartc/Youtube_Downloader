@@ -30,12 +30,12 @@
 </html>
 
 ## How to use
-- Install the exension in your browser throght [Chrome Web Store](https://chrome.google.com/webstore/category/extensions)
-- Close and reopen your browser, or refresh your tabs
-- Visit some youtube video link
-- Click on the extension's browser icon
-- Search for the desired media and click in Download
-- Wait until the download is completed and then click again to save the file in your machine
+- Download the project folder and then import it through your browser's extension page.
+- Close and reopen your browser, or refresh your tabs.
+- Visit some youtube video link.
+- Click on the extension's browser icon.
+- Search for the desired media and click in Download.
+- Wait until the download is completed and then click again to save the file in your machine.
 
 ## Some tips
 - You shouldn't keep downloaded data in your browser, since it may occupy more memory than it should.
