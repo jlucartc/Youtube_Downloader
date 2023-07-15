@@ -86,6 +86,10 @@ a{
     box-shadow: 2px 2px 2px 0px #353535;
 }
 
+.file-item-list-item__request-download:hover{
+    filter: brightness(1.4)
+}
+
 .file-item-list-item__download-complete{
     padding: 10px 20px 10px 20px;
     background-color: #4d944d;
@@ -93,6 +97,10 @@ a{
     font-weight: bold;
     border: none;
     box-shadow: 2px 2px 2px 0px #415541;
+}
+
+.file-item-list-item__download-complete:hover{
+    filter: brightness(1.4)
 }
 
 .file-item-list-item__remove{
@@ -104,9 +112,28 @@ a{
     box-shadow: 2px 2px 2px 0px #692a28;
 }
 
+.file-item-list-item__remove:hover{
+    filter: brightness(1.4)
+}
+
+
 .files{
     display: flex;
     flex-direction: column;
     padding: 20px;
     gap: 40px;
+}
+
+.clear_files{
+    padding: 10px 20px 10px 20px;
+    background-color: #cc2e29;
+    color: #ffffff;
+    font-weight: bold;
+    border: none;
+    width: 100%;
+    box-shadow: 2px 2px 2px 0px #692a28;
+}
+
+.clear_files:hover{
+    filter: brightness(1.4)
 }

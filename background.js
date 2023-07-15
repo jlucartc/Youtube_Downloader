@@ -96,7 +96,7 @@ function intercept_requests(tab_id){
     chrome.tabs.get(tab_id,(tab) => {
         chrome.webRequest.onCompleted.addListener((request) => {
             chrome.tabs.get(tab_id,(current_tab) => {                
-                if(current_tab != undefined){
+                if(current_tab){
                     if(title.hasOwnProperty(tab_id)){
                         if(title[tab_id] != current_tab.title){
                             title[tab_id] = current_tab.title
@@ -117,17 +117,21 @@ function intercept_requests(tab_id){
 
 function valid_request(request){
     let regex = /googlevideo\.com\/videoplayback\?/
-    return request.url.match(regex) != null
+    return request.url.match(regex)
 }
 
 function process_request(request_url,video_url,video_title){
-    load_data().then(data => {
+    load_data()
+    .then(data => {
         let file_signature = get_signature(request_url,video_url)
         if(!requests.hasOwnProperty(file_signature)){
-            if(request_size(request_url) != null){
-                requests[file_signature] = {title: video_title, mime: get_mime_description(request_url), requests: generate_requests(request_url)}
-                save_file(request_url,video_url)
-            }
+            if(!request_size(request_url)) return
+            requests[file_signature] = {
+                                        title: video_title,
+                                        mime: get_mime_description(request_url),
+                                        requests: generate_requests(request_url)
+                                    }
+            save_file(request_url,video_url)
         }else{
             update_title(request_url,video_url,video_title)
         }
@@ -135,18 +139,12 @@ function process_request(request_url,video_url,video_title){
 }
 
 function load_data(){
-    return chrome.storage.local.get(['requests','blobs'])
+    return chrome.storage.local.get(['requests'])
     .then(data => {
         if(data.hasOwnProperty('requests')){
             requests = data['requests']
         }else{
             requests = {}
-        }
-
-        if(data.hasOwnProperty('blobs')){
-            blobs = data['blobs']
-        }else{
-            blobs = {}
         }
     })
 }
@@ -161,11 +159,10 @@ function generate_requests(request_url){
         let range_regex = /\&range=[0-9]+-[0-9]+\&/
         let start = current_byte+1
         let end = start + bytes_per_request
-        if(index == request_quantity-1){
-            end = size-1
-        }
+        if(index == request_quantity-1) end = size-1
         current_byte = end
-        return request_url.replace(range_regex,'&range='+start+'-'+end+'&')
+        return request_url
+                .replace(range_regex,'&range='+start+'-'+end+'&')
     })
     return list
 }
@@ -173,8 +170,11 @@ function generate_requests(request_url){
 function request_size(request_url){
     let clen_regex = /\&clen=[0-9]+\&/
     let size = null
-    if(request_url.match(clen_regex) != null){
-        let clen = request_url.match(clen_regex)[0].replace('&clen=','').replace('&','')
+    if(request_url.match(clen_regex)){
+        let clen = request_url
+                    .match(clen_regex)[0]
+                    .replace('&clen=','')
+                    .replace('&','')
         size = parseInt(clen)
     }
     return size
@@ -235,11 +235,8 @@ function save_file(request_url,video_url){
 
 function get_mime_description(request_url){
     let itag = get_itag(request_url)
-    if(itag != undefined){
-        return itag
-    }else{
-        return get_mime(request_url)
-    }
+    if(itag) return itag
+    return get_mime(request_url)
 }
 
 function get_mime(request_url){
@@ -258,46 +255,26 @@ function download_file(request_url,video_url){
         return fetch(request,{method: 'POST'})
         .then(data => data.blob())
         .then(data => {
-            let blob_structure = {
-                data: [
-                    {
-                        content: data,
-                        id: index
-                    }
-                ],
-                name: file_name,
-                mime: mime,
-                id: index
-            }
-            if(blobs.hasOwnProperty(file_signature)){
-                blobs[file_signature].data.push({content: data, id: index})
-            }else{
-                blobs[file_signature] = blob_structure
-            }
-            chrome.storage.local.get('files')
-            .then(data => {
-                if(data.hasOwnProperty('files')){
-                    data['files'][file_signature].progress = Math.trunc((blobs[file_signature].data.length/requests[file_signature].requests.length)*100)
-                    chrome.storage.local.set({files: data['files']})
-                }
-            })
             return {content: data, id: index}
         })
     }))
 
     promise.then(data => {
+        blobs[file_signature] = {
+            data: data,
+            name: file_name,
+            mime: mime,
+            id: data.length-1
+        }
+
         chrome.storage.local.get(['files'])
         .then((data) => {
             let file_name = blobs[file_signature].name
             let file_mime = blobs[file_signature].mime
             let sorted_data = blobs[file_signature]
                               .data
-                              .sort((a,b) => {
-                                    return a.id - b.id
-                              })
-                              .map((data) => {
-                                    return data.content
-                              })
+                              .sort((a,b) => a.id - b.id)
+                              .map((data) => data.content)
             let file = new File(sorted_data,file_name,{type: file_mime})
             let reader = new FileReader()
             reader.addEventListener('load',() => {
@@ -306,12 +283,7 @@ function download_file(request_url,video_url){
                 .then(() => {
                     chrome.action.getBadgeText({})
                     .then((text) => {
-                        let new_text = ''
-                        if(text != ''){
-                            new_text = (parseInt(text)+1).toString()
-                        }else{
-                            new_text = '1'
-                        }
+                        let new_text = text ? (parseInt(text)+1).toString() : '1'
                         chrome.action.setBadgeText({text: new_text})
                     })
                 })
@@ -319,6 +291,24 @@ function download_file(request_url,video_url){
             reader.readAsDataURL(file)
         })
     })
+}
+
+function erase_data(){
+    chrome.action.setBadgeText({text: '0'})
+    requests = {}
+    blobs = {}
+}
+
+function erase_file(request_url,video_url){
+    chrome.action.getBadgeText({})
+    .then((text) => {
+        text = parseInt(text)
+        let new_text = text ? (text-1).toString() : '0'
+        chrome.action.setBadgeText({text: new_text})
+    })
+    let file_signature = get_signature(request_url,video_url)
+    delete requests[file_signature]
+    delete blobs[file_signature]
 }
 
 chrome.runtime.onConnect.addListener((conn) => {
@@ -329,20 +319,27 @@ chrome.runtime.onConnect.addListener((conn) => {
                 intercept_requests(tab_id)
                 break;
             case 'download_file':
+                let file_signature = get_signature(msg.request_url,msg.video_url)
+                if(blobs[file_signature]) delete blobs[file_signature]
                 download_file(msg.request_url,msg.video_url)
+                break;
+            case 'erase_data':
+                erase_data()
+                break;
+            case 'erase_file':
+                erase_file(msg.request_url,msg.video_url)
+                break;
             default:
                 break;
         }
     })
 })
 
-chrome.storage.local.get(['requests','blobs'])
+chrome.storage.local.get(['requests'])
 .then((data) => {
     if(data.hasOwnProperty('requests')){
         requests = data['requests']
-    }
-
-    if(data.hasOwnProperty('blobs')){
-        blobs = data['blobs']
+    }else{
+        requests = {}
     }
 })
