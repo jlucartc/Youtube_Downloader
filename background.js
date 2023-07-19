@@ -93,23 +93,24 @@ function get_signature(request_url,video_url){
 }
 
 function intercept_requests(tab_id){
-    chrome.tabs.get(tab_id,(tab) => {
-        chrome.webRequest.onCompleted.addListener((request) => {
-            chrome.tabs.get(tab_id,(current_tab) => {                
-                if(current_tab){
-                    if(title.hasOwnProperty(tab_id)){
-                        if(title[tab_id] != current_tab.title){
-                            title[tab_id] = current_tab.title
-                        }
-                    }else{
-                        title[tab_id] = current_tab.title
-                    }
-                    let video_url = current_tab.url
-                    let video_title = title[tab_id]
-                    if(valid_request(request)){
-                        process_request(request.url,video_url,video_title)
-                    }
-                }
+    chrome.tabs.get(tab_id)
+    .then(tab => {
+        chrome.webRequest.onCompleted.addListener(request => {
+            chrome.tabs.get(tab_id)
+            .then(current_tab => {
+                if(!current_tab) return
+                let video_url = current_tab.url
+                let old_title = title[tab_id]
+                let title_changed = old_title != current_tab.title
+                let title_exists = title.hasOwnProperty(tab_id)
+                
+                let current_title = title_exists ?
+                title_changed ? current_tab.title : old_title :
+                current_tab.title
+
+                valid_request(request) ?
+                process_request(request.url,video_url,current_title) :
+                null
             })
         },{urls: ['<all_urls>'], tabId: tab_id})
     })
@@ -140,13 +141,7 @@ function process_request(request_url,video_url,video_title){
 
 function load_data(){
     return chrome.storage.local.get(['requests'])
-    .then(data => {
-        if(data.hasOwnProperty('requests')){
-            requests = data['requests']
-        }else{
-            requests = {}
-        }
-    })
+    .then(data => requests = data.requests ? data.requests : {})
 }
 
 function generate_requests(request_url){
@@ -170,66 +165,74 @@ function generate_requests(request_url){
 function request_size(request_url){
     let clen_regex = /\&clen=[0-9]+\&/
     let size = null
-    if(request_url.match(clen_regex)){
-        let clen = request_url
-                    .match(clen_regex)[0]
-                    .replace('&clen=','')
-                    .replace('&','')
-        size = parseInt(clen)
-    }
+    let has_size = request_url.match(clen_regex)
+    if(!has_size) return size
+    let clen = request_url
+                .match(clen_regex)
+                .shift()
+                .replace('&clen=','')
+                .replace('&','')
+    size = parseInt(clen)
     return size
+}
+
+function range_start(request_url){
+    let range_regex = /\&range=[0-9]+-[0-9]+/
+    let start = null
+    let has_range = request_url.match(range_regex)
+    if(!has_range) return start
+    start = request_url
+                .match(range_regex)
+                .shift()
+                .replace('&range=','')
+                .split('-')
+                .shift()
+    start = parseInt(start)
+    return start
+}
+
+function range_end(request_url){
+    let range_regex = /\&range=[0-9]+-[0-9]+/
+    let end = null
+    let has_range = request_url.match(range_regex)
+    if(!has_range) return end
+    end = request_url
+                .match(range_regex)
+                .shift()
+                .replace('&range=','')
+                .split('-')
+                .pop()
+    end = parseInt(end)
+    return end
 }
 
 function update_title(request_url,video_url,video_title){
     let file_signature = get_signature(request_url,video_url)
     chrome.storage.local.get(['files'])
     .then(data => {
-        if(data.hasOwnProperty('files') && data['files'].hasOwnProperty(file_signature)){
-            data['files'][file_signature].title = video_title
-            chrome.storage.local.set({files: data['files']})
+        if(data.files && data.files.hasOwnProperty(file_signature)){
+            data.files[file_signature].title = video_title
+            chrome.storage.local.set({files: data.files})
         }
     })
 }
 
 function save_file(request_url,video_url){
     let file_signature = get_signature(request_url,video_url)
-    chrome.storage.local.get(['files'],(data) => {
-        if(data.hasOwnProperty('files')){
-            if(data['files'].hasOwnProperty(file_signature)){
-                data['files'][file_signature] = {
-                    request_url: request_url,
-                    video_url: video_url,
-                    title: requests[file_signature].title,
-                    mime: requests[file_signature].mime,
-                    in_progress: false,
-                    progress: 0,
-                    file: null
-                }
-            }else{
-                data['files'][file_signature] = {
-                    request_url: request_url,
-                    video_url: video_url,
-                    title: requests[file_signature].title,
-                    mime: requests[file_signature].mime,
-                    in_progress: false,
-                    progress: 0,
-                    file: null
-                }
-            }
-        }else{
-            data['files'] = {}
-            data['files'][file_signature] = {
-                request_url: request_url,
-                video_url: video_url,
-                title: requests[file_signature].title,
-                mime: requests[file_signature].mime,
-                in_progress: false,
-                progress: 0,
-                file: null
-            }
+    chrome.storage.local.get(['files'],data => {
+        let file_structure = {
+            request_url: request_url,
+            video_url: video_url,
+            title: requests[file_signature].title,
+            mime: requests[file_signature].mime,
+            in_progress: false,
+            progress: 0,
+            file: null
         }
-        chrome.storage.local.set({files: data['files'],blobs: blobs, requests: requests},() => {
-        })
+
+        if(!data.files) data.files = {}
+        data.files[file_signature] = JSON.parse(JSON.stringify(file_structure))
+        chrome.storage.local.set({files: data.files,blobs: blobs, requests: requests})
     })
 }
 
@@ -254,9 +257,8 @@ function download_file(request_url,video_url){
     let promise = Promise.all(request_list.map((request,index) => {
         return fetch(request,{method: 'POST'})
         .then(data => data.blob())
-        .then(data => {
-            return {content: data, id: index}
-        })
+        .then(data => data.slice(54,data.size,data.type))
+        .then(data => ({content: data, id: index}))
     }))
 
     promise.then(data => {
@@ -268,21 +270,21 @@ function download_file(request_url,video_url){
         }
 
         chrome.storage.local.get(['files'])
-        .then((data) => {
+        .then(data => {
             let file_name = blobs[file_signature].name
             let file_mime = blobs[file_signature].mime
             let sorted_data = blobs[file_signature]
                               .data
                               .sort((a,b) => a.id - b.id)
-                              .map((data) => data.content)
+                              .map(data => data.content)
             let file = new File(sorted_data,file_name,{type: file_mime})
             let reader = new FileReader()
             reader.addEventListener('load',() => {
-                data['files'][file_signature].file = reader.result
-                chrome.storage.local.set({files: data['files']})
+                data.files[file_signature].file = reader.result
+                chrome.storage.local.set({files: data.files})
                 .then(() => {
                     chrome.action.getBadgeText({})
-                    .then((text) => {
+                    .then(text => {
                         let new_text = text ? (parseInt(text)+1).toString() : '1'
                         chrome.action.setBadgeText({text: new_text})
                     })
@@ -301,7 +303,7 @@ function erase_data(){
 
 function erase_file(request_url,video_url){
     chrome.action.getBadgeText({})
-    .then((text) => {
+    .then(text => {
         text = parseInt(text)
         let new_text = text ? (text-1).toString() : '0'
         chrome.action.setBadgeText({text: new_text})
@@ -311,7 +313,7 @@ function erase_file(request_url,video_url){
     delete blobs[file_signature]
 }
 
-chrome.runtime.onConnect.addListener((conn) => {
+chrome.runtime.onConnect.addListener(conn => {
     conn.onMessage.addListener((msg,port) => {
         switch(msg.msg){
             case 'youtube_tab':
@@ -336,10 +338,6 @@ chrome.runtime.onConnect.addListener((conn) => {
 })
 
 chrome.storage.local.get(['requests'])
-.then((data) => {
-    if(data.hasOwnProperty('requests')){
-        requests = data['requests']
-    }else{
-        requests = {}
-    }
+.then(data => {
+    requests = data.requests ? data.requests : {}
 })

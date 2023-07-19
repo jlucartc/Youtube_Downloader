@@ -8,16 +8,11 @@ search_input.addEventListener('keyup',filter_files)
 file_format_select.addEventListener('change',filter_files)
 clear_files_button.addEventListener('click',clear_files)
 
-chrome.storage.local.get('files',(data) => {
-    if(data.hasOwnProperty('files')){
-        generate_files_list(data['files'])
-    }
-})
+chrome.storage.local.get('files')
+.then(data => data.files ? generate_files_list(data.files) : null)
 
-chrome.storage.onChanged.addListener((data,areaName) => {
-    if(data.hasOwnProperty('files')){
-        generate_files_list(data['files'].newValue)
-    }
+chrome.storage.onChanged.addListener(data => {
+    data.files ? generate_files_list(data.files.newValue) : null
 })
 
 function clear_files(){
@@ -27,28 +22,23 @@ function clear_files(){
 
 function filter_files(){
     let files = Array.from(document.querySelector('.files').children)
-    let search_input = document.querySelector('.search-group__input')
-    let file_format_select = document.querySelector('.format-filter__select')
-    let words = search_input.value.split(/\s+/)
+    let search = document.querySelector('.search-group__input')
+    let format = document.querySelector('.format-filter__select')
+    let words = search.value.toLowerCase().split(/\s+/)
 
-    files.forEach((file,index) => {
+    files.forEach(file => {
         let download_button = file.querySelector('.file-item-list-item__request-download , .file-item-list-item__download-complete')
         let signature = download_button.getAttribute('data-signature')
-        if(words.length > 0){
-            words.forEach((word) => {
-                if(file.innerText.toLowerCase().match(word.toLowerCase() != null) || signature.match(file_format_select.value+'$') != null ){
-                    file.style.display = 'flex'
-                }else{
-                    file.style.display = 'none'
-                }
-            })
-        }else{
-            if(signature.match(file_format_select.value+'$') != null ){
-                file.style.display = 'flex'
-            }else{
-                file.style.display = 'none'
-            }
-        }
+        let text = file.innerText.toLowerCase()
+        let style = file.style
+
+        let match_pattern = words => words.some(word => text.match(word))
+        let match_format = signature.match(format.value+'$')
+        const match_any = words => match_format ? match_pattern(words) : null
+        const check_words_and_format = words => style.display = match_any(words) ? 'flex' : 'none'
+        const check_format = () => style.display = match_format ? 'flex' : 'none'
+
+        words.length ? check_words_and_format(words) : check_format()
     })
 }
 
@@ -57,11 +47,10 @@ function generate_files_list(files){
 
     let files_container = document.querySelector('.files')
     
-    Array.from(files_container.children).forEach((child) => {
-        files_container.removeChild(child)
-    })
+    Array.from(files_container.children)
+    .forEach(child => files_container.removeChild(child))
 
-    videos.forEach((video) => {
+    videos.forEach(video => {
         let file = files[video]
 
         let file_item = document.createElement('div')
@@ -95,7 +84,7 @@ function generate_files_list(files){
         
         file_item_list_item_title.innerHTML = file.title
         
-        if(file.file != null){
+        if(file.file){
             file_item_list_item_download.className = 'file-item-list-item__download-complete'
             file_item_list_item_download.addEventListener('click',download_file)
             file_item_list_item_remove.className = 'file-item-list-item__remove'
@@ -120,11 +109,11 @@ function remove_file(e){
     let file_signature = e.target.getAttribute('data-signature')
     let request_url = e.target.getAttribute('data-request')
     let video_url = e.target.getAttribute('data-video')
-    chrome.storage.local.get(['files','requests','blobs'],(data) => {
+    chrome.storage.local.get(['files','requests','blobs'],data => {
         connection.postMessage({msg: 'erase_file', request_url: request_url, video_url: video_url})
-        delete data['files'][file_signature]
-        delete data['requests'][file_signature]
-        chrome.storage.local.set({files: data['files'], requests: data['requests']})
+        delete data.files[file_signature]
+        delete data.requests[file_signature]
+        chrome.storage.local.set({files: data.files, requests: data.requests})
     })    
 }
 
@@ -142,98 +131,10 @@ function get_mime(request_url){
     return mime
 }
 
-
-function request_file_chunks(request_url,video_url,current_request_index){
-    chrome.storage.local.get(['requests'])
-    .then(data => {
-        let requests = data['requests']
-        let file_signature = get_signature(request_url,video_url)
-        let total_requests = requests[file_signature].requests.length
-        let mime = get_mime(request_url)
-        let file_name = video_url+'.'+mime.split('/').pop()
-        if(current_request_index <= total_requests-1){
-            fetch(requests[file_signature].requests[current_request_index],{method: 'POST'})
-            .then(data => data.blob())
-            .then(data => {
-                let reader = new FileReader()
-                let blob_url = URL.createObjectURL(data)
-                let blob_structure = {
-                    data: [
-                        {
-                            content: blob_url,
-                            id: current_request_index
-                        }
-                    ],
-                    name: file_name,
-                    mime: mime
-                }
-                if(blobs.hasOwnProperty(file_signature)){
-                    blobs[file_signature].data.push({content: blob_url, id: current_request_index})
-                }else{
-                    blobs[file_signature] = blob_structure
-                }
-                chrome.storage.local.get('files')
-                .then(storage => {
-                    if(storage.hasOwnProperty('files')){
-                        storage['files'][file_signature].progress = Math.trunc((blobs[file_signature].data.length/requests[file_signature].requests.length)*100)
-                        chrome.storage.local.set({files: storage['files']})
-                        .then(() => {
-                            request_file_chunks(request_url,video_url,current_request_index+1)
-                        })
-                    }
-                })
-                reader.addEventListener('load',() => {
-                })
-                reader.readAsDataURL(data)
-            })
-        }else{
-            chrome.storage.local.get(['files'])
-            .then(data => {
-                let file_name = blobs[file_signature].name
-                let file_mime = blobs[file_signature].mime
-                let sorted_data = blobs[file_signature]
-                                  .data
-                                  .sort((a,b) => {
-                                        return a.id - b.id
-                                  })
-                                  .map((data) => {
-                                        return data.content
-                                  })
-                let sorted_blobs = Promise.all(sorted_data.map((data,index) => {
-                    return fetch(data.content)
-                    .then(data => data.blob())
-                }))
-    
-                sorted_blobs.then(result_blobs => {
-                    let file = new File(result_blobs,file_name,{type: file_mime})
-                    let reader = new FileReader()
-                    reader.addEventListener('load',() => {
-                        data['files'][file_signature].file = reader.result
-                        chrome.storage.local.set({files: data['files']})
-                        .then(() => {
-                            chrome.action.getBadgeText({})
-                            .then((text) => {
-                                let new_text = ''
-                                if(text != ''){
-                                    new_text = (parseInt(text)+1).toString()
-                                }else{
-                                    new_text = '1'
-                                }
-                                chrome.action.setBadgeText({text: new_text})
-                            })
-                        })
-                    })
-                    reader.readAsDataURL(file)
-                })
-            })
-        }
-    })
-}
-
 function download_file(e){
     let file_signature = e.target.getAttribute('data-signature')
-    chrome.storage.local.get(['files'],(data) => {
-        let file = data['files'][file_signature]
+    chrome.storage.local.get(['files'],data => {
+        let file = data.files[file_signature]
         let link = document.createElement('a')
         link.style.display = 'none'
         link.href = file.file
@@ -253,12 +154,9 @@ function request_file_download(e){
     e.target.innerHTML = 'Downloading '+mime+'...'
     chrome.storage.local.get('files')
     .then(data => {
-        if(data.hasOwnProperty('files')){
-            data['files'][signature].in_progress = true
-            chrome.storage.local.set({files: data['files']})
-            .then(() => {
-                connection.postMessage({msg: 'download_file', request_url: request_url, video_url: video_url})
-            })
-        }
+        if(!data.files) return 
+        data.files[signature].in_progress = true
+        chrome.storage.local.set({files: data.files})
+        .then(() => connection.postMessage({msg: 'download_file', request_url: request_url, video_url: video_url}))
     })
 }
